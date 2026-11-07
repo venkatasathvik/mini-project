@@ -2,7 +2,7 @@
 
 ##  Project Overview
 
-The OpenPulse project demonstrates a highly constrained, hardware-aware AI pipeline designed for bare-metal FPGA deployment. The objective is to perform binary image classification (Cloud vs. Clear terrain) directly on satellite telemetry using a custom **F=4 Micro-CNN** mapped to an INT8 systolic array in Verilog.
+The OpenPulse project demonstrates a highly constrained, hardware AI pipeline designed for bare-metal FPGA deployment. The objective is to perform binary image classification (Cloud vs. Clear terrain) directly on satellite telemetry using a custom **F=4 Micro-CNN** mapped to an INT8 systolic array in Verilog.
 
 Because standard floating-point Neural Networks cannot be deployed directly to small FPGAs without memory overflows, this project features a strict Python software pipeline that handles 8-bit integer quantization and specific memory-mapping exports (`.coe` files) for Xilinx Vivado Block RAM (BRAM).
 
@@ -45,7 +45,7 @@ To train and test the model within hardware limits, the image data must be singl
    * **Source:** Live local satellite telemetry (FY-2x series).
    * **Usage:** Reserved strictly for **unseen data validation** to ensure the F=4 architecture does not overfit to the Kaggle dataset.
 
-##  Hardware-Aware Architecture (F=4 Micro-CNN)
+##  Hardware Architecture (F=4 Micro-CNN)
 
 The neural network is deliberately stunted to fit within the FPGA's BRAM limitations and to avoid unsupported hardware operations (like floating-point exponential math).
 
