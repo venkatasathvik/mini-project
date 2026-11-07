@@ -1,0 +1,6 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/Users/sathv/OneDrive/Desktop/mini project/project/vpg_top.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module vpg_top
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/Users/sathv/OneDrive/Desktop/mini project/project/tb_vpg_top.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module tb_vpg_top
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/Users/sathv/OneDrive/Desktop/mini project/project/tpu_phase1.sim/sim_2/behav/xsim/glbl.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module glbl

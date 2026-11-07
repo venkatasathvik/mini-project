@@ -1,0 +1,12 @@
+Time resolution is 1 ps
+[PASS] Case 1 (Zero): act=0, weight=0, psum=0 -> psum_out=0
+[PASS] Case 2 (Standard): act=15, weight=-3, psum=100 -> psum_out=55
+[PASS] Case 3 (Max Pos): act=127, weight=127, psum=2147483600 -> psum_out=-2147467567 (Hex: 80003ed1)
+[PASS] Case 4 (Max Neg): act=-128, weight=-128, psum=0 -> psum_out=16384
+----------------------------------------
+RESULT: ALL 4 TEST CASES PASSED SUCCESSFULLY!
+----------------------------------------
+[PASS] Case 5 (True Max Pos): psum_out=2147483647
+[PASS] Case 6 (Enable=0 holds outputs)
+[PASS] Case 7 (Reset clears outputs)
+$finish called at time : 116 ns : File "C:/Users/sathv/OneDrive/Desktop/mini project/project/tb_mac_pe.v" Line 152
