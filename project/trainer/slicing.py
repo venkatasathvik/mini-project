@@ -15,8 +15,8 @@ os.makedirs(OUTPUT_DIR_CLOUDY, exist_ok=True)
 
 # 38-Cloud directories (Extract the downloaded dataset into your 'sample dataset' folder)
 # We use the Red band (Band 4) directly as our grayscale input.
-BAND_DIR = 'sample dataset/38-Cloud_training/train_red' 
-GT_DIR = 'sample dataset/38-Cloud_training/train_gt'    # Ground truth (cloud masks)
+BAND_DIR = 'sample dataset/train_red'
+GT_DIR = 'sample dataset/train_gt'    # Ground truth (cloud masks)
 
 def extract_38cloud_tiles():
     clear_count = 0
