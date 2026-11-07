@@ -6,7 +6,6 @@ from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 import numpy as np
 
-# 1. HARDWARE-AWARE MODEL
 class OpenPulseCNN(nn.Module):
     def __init__(self):
         super(OpenPulseCNN, self).__init__()
@@ -23,22 +22,19 @@ class OpenPulseCNN(nn.Module):
         x = self.fc(x)
         return x
 
-# 2. DATA PIPELINE (Strictly scaled to 0-127 for hardware)
 transform = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),
     transforms.Resize((128, 128)),
-    transforms.ToTensor(), # Converts to 0.0 - 1.0
-    transforms.Lambda(lambda x: x * 127.0) # Scales strictly to 0.0 - 127.0
+    transforms.ToTensor(),
+    transforms.Lambda(lambda x: x * 127.0)
 ])
 
 print("Loading dataset...")
 dataset = ImageFolder(root='dataset', transform=transform)
 dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
-print(f"Found {len(dataset)} tiles. Classes: {dataset.class_to_idx}")
 
-# 3. TRAINING LOOP
 model = OpenPulseCNN()
-criterion = nn.BCEWithLogitsLoss() # Best for binary classification
+criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 epochs = 10
@@ -46,64 +42,49 @@ print("Starting training...")
 for epoch in range(epochs):
     epoch_loss = 0.0
     for images, labels in dataloader:
-        # Reshape labels for BCE loss
         labels = labels.unsqueeze(1).float() 
-        
         optimizer.zero_grad()
         outputs = model(images)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
-        
         epoch_loss += loss.item()
     print(f"Epoch {epoch+1}/{epochs} | Loss: {epoch_loss/len(dataloader):.4f}")
 
-
-print("Evaluating FP32 Training Accuracy...")
-model.eval() # Lock the model weights for testing
+print("\nEvaluating FP32 Training Accuracy...")
+model.eval()
 correct = 0
 total = 0
-
 with torch.no_grad():
     for images, labels in dataloader:
         outputs = model(images)
-        # BCEWithLogitsLoss outputs raw logits. A logit > 0 equals a >50% probability of Class 1 (Cloud)
         predictions = (outputs > 0).squeeze().long()
         correct += (predictions == labels).sum().item()
         total += labels.size(0)
+print(f"FP32 Training Accuracy: {(correct / total) * 100:.2f}%")
 
-accuracy = (correct / total) * 100
-print(f"FP32 Training Accuracy: {accuracy:.2f}%")
-
-# ---------------------------------------------------------
-# UNSEEN DATA ACCURACY EVALUATION (SkyPulse Test)
-# ---------------------------------------------------------
 print("\nEvaluating Model on Unseen SkyPulse Data...")
 try:
-    test_dataset = ImageFolder(root='test_data', transform=transform)
+    test_dataset = ImageFolder(root='test_dataset_of_skypulse', transform=transform)
     test_dataloader = DataLoader(test_dataset, batch_size=16, shuffle=False)
     
     correct_test = 0
     total_test = 0
-    
     with torch.no_grad():
         for images, labels in test_dataloader:
             outputs = model(images)
             predictions = (outputs > 0).long().view(-1)
             labels = labels.long().view(-1)
-            
             correct_test += (predictions == labels).sum().item()
             total_test += labels.size(0)
             
     if total_test > 0:
-        test_accuracy = (correct_test / total_test) * 100
-        print(f"Unseen Data (SkyPulse) Accuracy: {test_accuracy:.2f}%\n")
+        print(f"Unseen Data (SkyPulse) Accuracy: {(correct_test / total_test) * 100:.2f}%\n")
     else:
-        print("No test data found. Please sort tiles into test_data/clear and test_data/cloudy.\n")
+        print("No test data found. Sort tiles into test_dataset_of_skypulse/clear and cloudy.\n")
 except Exception as e:
     print(f"Skipping test data evaluation: {e}\n")
 
-# 4. SYMMETRIC QUANTIZATION & COE EXPORT
 def export_quantized_coe(tensor_fp32, filename):
     numpy_weights = tensor_fp32.detach().numpy()
     max_abs_val = np.max(np.abs(numpy_weights))
@@ -125,6 +106,7 @@ def export_quantized_coe(tensor_fp32, filename):
     print(f"Exported {filename} ({len(flat)} weights)")
 
 print("Quantizing and exporting hardware files...")
-export_quantized_coe(model.conv1.weight, 'conv1_weights.coe')
-export_quantized_coe(model.fc.weight, 'fc_weights.coe')
+# Routing to the updated 'output_coe_files' folder
+export_quantized_coe(model.conv1.weight, 'output_coe_files/conv1_weights.coe')
+export_quantized_coe(model.fc.weight, 'output_coe_files/fc_weights.coe')
 print("Pipeline complete. Ready for Vivado.")
