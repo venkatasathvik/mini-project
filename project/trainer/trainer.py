@@ -58,6 +58,51 @@ for epoch in range(epochs):
         epoch_loss += loss.item()
     print(f"Epoch {epoch+1}/{epochs} | Loss: {epoch_loss/len(dataloader):.4f}")
 
+
+print("Evaluating FP32 Training Accuracy...")
+model.eval() # Lock the model weights for testing
+correct = 0
+total = 0
+
+with torch.no_grad():
+    for images, labels in dataloader:
+        outputs = model(images)
+        # BCEWithLogitsLoss outputs raw logits. A logit > 0 equals a >50% probability of Class 1 (Cloud)
+        predictions = (outputs > 0).squeeze().long()
+        correct += (predictions == labels).sum().item()
+        total += labels.size(0)
+
+accuracy = (correct / total) * 100
+print(f"FP32 Training Accuracy: {accuracy:.2f}%")
+
+# ---------------------------------------------------------
+# UNSEEN DATA ACCURACY EVALUATION (SkyPulse Test)
+# ---------------------------------------------------------
+print("\nEvaluating Model on Unseen SkyPulse Data...")
+try:
+    test_dataset = ImageFolder(root='test_data', transform=transform)
+    test_dataloader = DataLoader(test_dataset, batch_size=16, shuffle=False)
+    
+    correct_test = 0
+    total_test = 0
+    
+    with torch.no_grad():
+        for images, labels in test_dataloader:
+            outputs = model(images)
+            predictions = (outputs > 0).long().view(-1)
+            labels = labels.long().view(-1)
+            
+            correct_test += (predictions == labels).sum().item()
+            total_test += labels.size(0)
+            
+    if total_test > 0:
+        test_accuracy = (correct_test / total_test) * 100
+        print(f"Unseen Data (SkyPulse) Accuracy: {test_accuracy:.2f}%\n")
+    else:
+        print("No test data found. Please sort tiles into test_data/clear and test_data/cloudy.\n")
+except Exception as e:
+    print(f"Skipping test data evaluation: {e}\n")
+
 # 4. SYMMETRIC QUANTIZATION & COE EXPORT
 def export_quantized_coe(tensor_fp32, filename):
     numpy_weights = tensor_fp32.detach().numpy()
@@ -74,7 +119,7 @@ def export_quantized_coe(tensor_fp32, filename):
     with open(filename, 'w') as f:
         f.write("memory_initialization_radix=16;\nmemory_initialization_vector=\n")
         for i, val in enumerate(flat):
-            hex_val = f"{val & 0xFF:02X}"
+            hex_val = f"{int(val) & 0xFF:02X}"
             terminator = ";" if i == len(flat) - 1 else ",\n"
             f.write(f"{hex_val}{terminator}")
     print(f"Exported {filename} ({len(flat)} weights)")
@@ -82,12 +127,4 @@ def export_quantized_coe(tensor_fp32, filename):
 print("Quantizing and exporting hardware files...")
 export_quantized_coe(model.conv1.weight, 'conv1_weights.coe')
 export_quantized_coe(model.fc.weight, 'fc_weights.coe')
-print("Pipeline complete. Ready for Vivado.")
-
-print("Quantizing and exporting hardware files...")
-
-# Update these two lines to route the .coe files to your specific folder
-export_quantized_coe(model.conv1.weight, 'project/output files/conv1_weights.coe')
-export_quantized_coe(model.fc.weight, 'project/output files/fc_weights.coe')
-
 print("Pipeline complete. Ready for Vivado.")
