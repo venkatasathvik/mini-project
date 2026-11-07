@@ -1,12 +1,12 @@
 # OpenPulse: Edge-AI FPGA Pipeline for Satellite Telemetry
 
-## Project Overview
+## 🛰️ Project Overview
 
 The OpenPulse project demonstrates a highly constrained, hardware AI pipeline designed for bare-metal FPGA deployment. The objective is to perform binary image classification (Cloud vs. Clear terrain) directly on satellite telemetry using a custom **F=4 Micro-CNN** mapped to an INT8 systolic array in Verilog.
 
 Because standard floating-point Neural Networks cannot be deployed directly to small FPGAs without memory overflows, this project features a strict Python software pipeline that handles 8-bit integer quantization and specific memory-mapping exports (`.coe` files) for Xilinx Vivado Block RAM (BRAM).
 
-##  Dataset Visual Samples
+## Dataset Visual Samples
 
 ### 1. Landsat 8 Training Data (128x128 Scaled INT8)
 
@@ -30,7 +30,7 @@ These are live local satellite captures obtained via a rooftop ground station. T
 | :---: | :---: | :---: | :---: |
 | `FY-2x_1` | `FY-2x_2` | `FY-2x_3` | `FY-2x_4` |
 
-## Data Sources & Preprocessing
+##  Data Sources & Preprocessing
 
 To train and test the model within hardware limits, the image data must be single-channel grayscale, exactly 128x128 pixels, and scaled strictly to positive 8-bit integers (0 to 127).
 
@@ -45,7 +45,7 @@ To train and test the model within hardware limits, the image data must be singl
 
 ---
 
-## Complete System Architecture
+##  Complete System Architecture
 
 This project is split into two halves: Software Training (PyTorch) and Hardware Inference (Verilog/Vivado). 
 
@@ -67,7 +67,26 @@ Once quantized, the network is mapped into the following physical Verilog compon
 
 ---
 
-## End-to-End Pipeline Flow
+## Hardware Specifications 
+
+The following technical constants and verification checkpoints have been locked in for Phase 1 of the hardware design:
+
+### Fixed Specifications
+| Category | Item | Specification |
+| :--- | :--- | :--- |
+| **Numeric** | Activations / weights | Signed INT8 |
+| **Numeric** | Accumulator | 32-bit signed, wraparound on overflow |
+| **Numeric** | Weight quantisation | Symmetric per-tensor, scale = `max\|W\| / 127`, clip `-127..127`, zero point 0 |
+| **Memory** | Weight address | `out × NUM_IN + in` |
+| **Frame** | Size and format | 128×128 grayscale, 1 byte/pixel, values 0–127, row-major |
+| **Frame** | File format | `.coe`, radix 16, 16,384 words |
+| **Frame** | Preprocessing | Centre crop to square, INTER_AREA resize, `round(pixel / 255 × 127)` |
+| **Architecture**| Array | 4×4, weight-stationary |
+| **Architecture**| PE | Registered activation pass-through, enable, synchronous reset |
+
+
+
+##  End-to-End Pipeline Flow
 
 ```mermaid
 graph TD
@@ -99,29 +118,7 @@ graph TD
 
 ---
 
-## Directory Structure & Important Files
-
-```
-mini-project/
-├── dataset/                        # Master folder for the balanced 2,000 training images.
-├── initial dataset/                # Raw downloads folder (Kaggle 38-Cloud & SkyPulse captures).
-├── initial testing/                # Vivado Verilog sources, testbenches, and Vivado project files.
-├── output_coe_files/               # Target destination for Vivado BRAM initialization files.
-│   ├── conv1_weights.coe           # Hex file containing the 36 Conv2D weights.
-│   └── fc_weights.coe              # Hex file containing the 16,384 Dense layer weights.
-├── test_dataset_of_skypulse/       # Folder for SkyPulse accuracy testing.
-│   └── slicing2.py                 # Script: Auto-sorts and slices raw SkyPulse samples.
-├── testing/
-│   ├── coe_checker.py              # Script: Verifies hex shapes and integer limits of generated .coe files.
-│   └── golden_model_coe.py         # Script: Verifies INT8 mathematical accuracy before Verilog synthesis.
-└── trainer/
-    ├── slicing.py                  # Script: Slices, thresholds, and scales the 38-Cloud dataset.
-    └── trainer.py                  # Script: The core AI engine. Trains the model and exports .coe files.
-```
-
----
-
-## Pipeline Execution Guide
+##  Pipeline Execution Guide
 
 To replicate the training and hardware export, execute these scripts in order from the **root directory** (`mini-project`):
 
@@ -152,3 +149,15 @@ python test_dataset_of_skypulse\slicing2.py
 
 ### Step 5: Vivado Integration (Hardware Phase)
 Open Xilinx Vivado (using the files in `initial testing/`). When generating your Block Memory Generator IPs for the layers, point the initialization parameters to the respective `.coe` files generated in `output_coe_files/`. Run the Verilog testbench to view the digital waveform output.
+
+---
+
+### Future Work 
+These items are cataloged for future versions :
+
+* Array-size sweep (N = 2, 4, 8) and tile-width sweep.
+* Maximum layers and input size bound exploration.
+* Colour target classification (RGB processing).
+* Runtime weight reload via AXI-Lite & ping-pong weight buffers.
+* Multi-layer execution with requantisation.
+* External DDR memory interfacing via AXI DMA for larger models.
