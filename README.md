@@ -11,26 +11,24 @@ Because standard floating-point Neural Networks cannot be deployed directly to s
 ### 1. Landsat 8 Training Data (128x128 Scaled INT8)
 
 This is the primary training baseline. These images have been preprocessed to strictly single-channel grayscale and scaled to positive 8-bit integers (0 to 127) for direct Verilog compatibility.
+Clear Terrain (Class 0):
+| <img src="dataset/clear/tile_0000.png" width="128"> | <img src="dataset/clear/tile_0001.png" width="128"> | <img src="dataset/clear/tile_0002.png" width="128"> | <img src="dataset/clear/tile_0003.png" width="128"> |
+| :---: | :---: | :---: | :---: |
+| `tile_0000.png` | `tile_0001.png` | `tile_0002.png` | `tile_0003.png` |
 
-**Clear Terrain (Class 0):**
+Cloudy (Class 1):
+| <img src="dataset/cloudy/tile_0000.png" width="128"> | <img src="dataset/cloudy/tile_0001.png" width="128"> | <img src="dataset/cloudy/tile_0002.png" width="128"> | <img src="dataset/cloudy/tile_0003.png" width="128"> |
+| :---: | :---: | :---: | :---: |
+| `tile_0000.png` | `tile_0001.png` | `tile_0002.png` | `tile_0003.png` |
 
-|  |  |  |  | 
-| ----- | ----- | ----- | ----- | 
-| `tile_0000.png` | `tile_0001.png` | `tile_0002.png` | `tile_0003.png` | 
-
-**Cloudy (Class 1):**
-
-|  |  |  |  | 
-| ----- | ----- | ----- | ----- | 
-| `tile_0000.png` | `tile_0001.png` | `tile_0002.png` | `tile_0003.png` | 
 
 ### 2. SkyPulse Raw Telemetry (Testing Samples)
 
 These are live local satellite captures obtained via a rooftop ground station. They serve as our unseen test data to prove the model can generalize to real-world hardware captures. *(Note: These images represent the raw full-scale captures prior to 128x128 slicing).*
+| <img src="initial dataset/skypulse dataset/FY-2x_1_20260410T115518Z.png" width="200"> | <img src="initial dataset/skypulse dataset/FY-2x_2_20260410T115518Z.png" width="200"> | <img src="initial dataset/skypulse dataset/FY-2x_3_20260410T115527Z.png" width="200"> | <img src="initial dataset/skypulse dataset/FY-2x_4_20260410T115528Z.png" width="200"> |
+| :---: | :---: | :---: | :---: |
+| `FY-2x_1` | `FY-2x_2` | `FY-2x_3` | `FY-2x_4` |
 
-|  |  |  |  | 
-| ----- | ----- | ----- | ----- | 
-| `FY-2x_1` | `FY-2x_2` | `FY-2x_3` | `FY-2x_4` | 
 
 ##  Data Sources & Preprocessing
 
