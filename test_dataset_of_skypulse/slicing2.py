@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 
 # --- KEEP YOUR SAME .ZIP PATH HERE ---
-ZIP_PATH = r"PASTE_YOUR_ZIP_PATH_HERE".strip('"')
+ZIP_PATH = r"C:\Users\sathv\OneDrive\Desktop\training data set\skypulse\FY-2H_NPY_9CH_Feb-May2026.zip".strip('"')
 
 # Configuration
 TILE_SIZE = 128
