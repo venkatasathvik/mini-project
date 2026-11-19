@@ -4,22 +4,27 @@ import zipfile
 import numpy as np
 import cv2
 
-# --- KEEP YOUR SAME .ZIP PATH HERE ---
 ZIP_PATH = r"C:\Users\sathv\OneDrive\Desktop\training data set\skypulse\FY-2H_NPY_9CH_Feb-May2026.zip".strip('"')
 
-# Configuration
 TILE_SIZE = 128
-OUTPUT_DIR_CLEAR = 'test_dataset_of_skypulse/clear'
-OUTPUT_DIR_CLOUDY = 'test_dataset_of_skypulse/cloudy'
+TRAIN_CLEAR = 'dataset_fy2h_train/clear'
+TRAIN_CLOUDY = 'dataset_fy2h_train/cloudy'
+TEST_CLEAR = 'test_dataset_of_skypulse/clear'
+TEST_CLOUDY = 'test_dataset_of_skypulse/cloudy'
 
-# True midday window (filenames are IST -> 11:00 AM to 2:59 PM IST)
+# Midday IST window (11:00 - 14:59)
 MIN_HOUR = 11
 MAX_HOUR = 14
-MAX_PER_CLASS = 500  # Balanced 50/50 test set (1,000 tiles total)
 
-# Thresholds on 0-127 scale (dead zone 35..55 discarded as ambiguous)
-CLEAR_MAX = 35
-CLOUDY_MIN = 55
+# Strict chronological cutoff (YYYYMMDD): train < cutoff, unseen test >= cutoff
+TEST_START_DATE = "20260421"
+
+MAX_TRAIN_PER_CLASS = 1000  # 2,000 balanced training tiles
+MAX_TEST_PER_CLASS = 500    # 1,000 balanced unseen test tiles
+
+# Thresholds on standard 0-255 uint8 PNG scale (maps to 35 and 55 after ToTensor()*127)
+CLEAR_MAX = 70
+CLOUDY_MIN = 110
 
 def reset_folder(folder):
     os.makedirs(folder, exist_ok=True)
@@ -28,77 +33,71 @@ def reset_folder(folder):
         if os.path.isfile(fpath):
             os.remove(fpath)
 
-def auto_slice_from_zip():
-    reset_folder(OUTPUT_DIR_CLEAR)
-    reset_folder(OUTPUT_DIR_CLOUDY)
-    print("Cleared old test folders.")
-
+def extract_split(zf, members, clear_dir, cloudy_dir, max_per_class, label):
     clear_count = 0
     cloudy_count = 0
 
-    with zipfile.ZipFile(ZIP_PATH, 'r') as zf:
-        npy_members = sorted(m for m in zf.namelist() if m.lower().endswith('.npy'))
-        midday_members = []
+    for member in members:
+        if clear_count >= max_per_class and cloudy_count >= max_per_class:
+            break
 
-        for m in npy_members:
-            fname = m.split('/')[-1]
-            stem = os.path.splitext(fname)[0]
+        arr = np.load(io.BytesIO(zf.read(member)))
+        vis = arr[:, :, 4]  # Channel 4: Visible
+
+        if vis.max() <= 0.01:
+            continue
+
+        # Save as standard 0-255 uint8 so ToTensor()*127.0 yields true 0-127 INT8 range
+        frame_u8 = np.round(np.clip(vis, 0.0, 1.0) * 255.0).astype(np.uint8)
+        h, w = frame_u8.shape
+
+        for y in range(0, h - TILE_SIZE + 1, TILE_SIZE):
+            for x in range(0, w - TILE_SIZE + 1, TILE_SIZE):
+                patch = frame_u8[y:y+TILE_SIZE, x:x+TILE_SIZE]
+                avg_intensity = float(np.mean(patch))
+
+                if avg_intensity < 6:
+                    continue
+
+                if avg_intensity > CLOUDY_MIN and cloudy_count < max_per_class:
+                    cv2.imwrite(os.path.join(cloudy_dir, f"fy2h_{label}_cloudy_{cloudy_count:04d}.png"), patch)
+                    cloudy_count += 1
+                elif avg_intensity < CLEAR_MAX and clear_count < max_per_class:
+                    cv2.imwrite(os.path.join(clear_dir, f"fy2h_{label}_clear_{clear_count:04d}.png"), patch)
+                    clear_count += 1
+
+    print(f"[{label.upper()}] Saved {clear_count} clear and {cloudy_count} cloudy tiles.")
+
+def auto_slice_from_zip():
+    for folder in (TRAIN_CLEAR, TRAIN_CLOUDY, TEST_CLEAR, TEST_CLOUDY):
+        reset_folder(folder)
+    print("Cleared train/test FY-2H folders.")
+
+    with zipfile.ZipFile(ZIP_PATH, 'r') as zf:
+        train_members, test_members = [], []
+
+        for m in sorted(zf.namelist()):
+            if not m.lower().endswith('.npy'):
+                continue
+            stem = os.path.splitext(m.split('/')[-1])[0]
             try:
-                hour = int(stem.split('_')[1][:2])
+                date_str, time_str = stem.split('_')
+                hour = int(time_str[:2])
                 if MIN_HOUR <= hour <= MAX_HOUR:
-                    midday_members.append(m)
+                    if date_str < TEST_START_DATE:
+                        train_members.append(m)
+                    else:
+                        test_members.append(m)
             except (IndexError, ValueError):
                 continue
 
-        # Spread sampling across all 109 days instead of only early February
-        step = max(1, len(midday_members) // 150)
-        selected = midday_members[::step]
-        print(f"Found {len(midday_members)} midday frames; scanning up to {len(selected)}...")
+        # Spread sampling evenly across dates in each split
+        train_selected = train_members[::max(1, len(train_members) // 250)]
+        test_selected = test_members[::max(1, len(test_members) // 150)]
 
-        printed_stats = False
-
-        for member in selected:
-            if clear_count >= MAX_PER_CLASS and cloudy_count >= MAX_PER_CLASS:
-                break
-
-            arr = np.load(io.BytesIO(zf.read(member)))
-            vis = arr[:, :, 4]  # Channel 4: Visible
-
-            if vis.max() <= 0.01:
-                continue
-
-            scaled_frame = np.round(np.clip(vis, 0.0, 1.0) * 127.0).astype(np.uint8)
-
-            if not printed_stats:
-                p25, p50, p75 = np.percentile(scaled_frame, [25, 50, 75])
-                print(f"Midday VIS stats ({member.split('/')[-1]}) [0-127] -> "
-                      f"min:{scaled_frame.min()}  p25:{p25:.1f}  p50:{p50:.1f}  "
-                      f"p75:{p75:.1f}  max:{scaled_frame.max()}")
-                printed_stats = True
-
-            h, w = scaled_frame.shape
-            for y in range(0, h - TILE_SIZE + 1, TILE_SIZE):
-                for x in range(0, w - TILE_SIZE + 1, TILE_SIZE):
-                    patch = scaled_frame[y:y+TILE_SIZE, x:x+TILE_SIZE]
-                    avg_intensity = float(np.mean(patch))
-
-                    if avg_intensity < 3:
-                        continue
-
-                    if avg_intensity > CLOUDY_MIN and cloudy_count < MAX_PER_CLASS:
-                        cv2.imwrite(
-                            os.path.join(OUTPUT_DIR_CLOUDY, f"fy2h_cloudy_{cloudy_count:04d}.png"),
-                            patch
-                        )
-                        cloudy_count += 1
-                    elif avg_intensity < CLEAR_MAX and clear_count < MAX_PER_CLASS:
-                        cv2.imwrite(
-                            os.path.join(OUTPUT_DIR_CLEAR, f"fy2h_clear_{clear_count:04d}.png"),
-                            patch
-                        )
-                        clear_count += 1
-
-    print(f"\nDone! Saved {clear_count} clear tiles and {cloudy_count} cloudy tiles.")
+        print(f"Found {len(train_members)} train frames (Feb-Apr 20) & {len(test_members)} unseen test frames (Apr 21-May 20).")
+        extract_split(zf, train_selected, TRAIN_CLEAR, TRAIN_CLOUDY, MAX_TRAIN_PER_CLASS, "train")
+        extract_split(zf, test_selected, TEST_CLEAR, TEST_CLOUDY, MAX_TEST_PER_CLASS, "test")
 
 if __name__ == "__main__":
     auto_slice_from_zip()
